@@ -1,7 +1,7 @@
 const e = require('express');
 const File = require('../models/File');
 const cloudinary = require('cloudinary').v2;
-
+//////////////////////////////////////////////////////////////////////
 // local file upload -> handler function
 exports.localFileUpload = async (req, res) => {
     try {
@@ -37,8 +37,11 @@ function isFileSupported(type,supportedType){
     return supportedType.includes(type);
 }
 
-async function uploadFileToCloudinary(file,folder){
+async function uploadFileToCloudinary(file,folder,quality){
     const options = {folder};
+    if(quality){
+        options.quality = quality;
+    }
     options.resource_type = "auto";
     return await cloudinary.uploader.upload(file.tempFilePath,options);
     
@@ -137,7 +140,7 @@ exports.videoUpload = async (req, res) => {
         email,
         imageUrl: response.secure_url,
     });
-    
+
     // create a successful response
     res.json({
         success: true,
@@ -150,6 +153,59 @@ exports.videoUpload = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error while uploading video in cloud',
+            error: error.message,
+        });
+    }
+}
+
+///////////////////////////////////////////////////////////////////////
+// image size reducer ka handler
+
+exports.imageSizeReducer = async (req, res) => {
+    try {
+        // data fetch
+        const {name,tags,email} = req.body;
+        console.log(name,tags,email);
+
+        const file = req.files.imageFile;
+        console.log(file);
+
+        // validation
+        const supportedTypes = ['jpeg', 'png', 'jpg'];
+        const fileType = file.name.split('.')[1].toLowerCase();
+        console.log(fileType);
+
+        if(!isFileSupported(fileType,supportedTypes)){
+            return res.status(400).json({
+                success: false,
+                message: 'File format not supported',
+            });
+        }
+
+        // file format supported hai
+
+        const response = await uploadFileToCloudinary(file,"Saif",3);
+        console.log(response);
+
+        // db mein save karna
+        const fileData = await File.create({
+            name,
+            tags,
+            email,
+            imageUrl: response.secure_url,
+        });
+
+        // create a successful response
+        res.json({
+            success: true,
+            message: 'Image uploaded successfully',
+            imageUrl: response.secure_url,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: 'Error while uploading image in cloud',
             error: error.message,
         });
     }
